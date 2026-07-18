@@ -2,11 +2,14 @@ import { useMemo, useState, useEffect, useCallback } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { useRoomCall } from "../hooks/useRoomCall";
+import { useActiveSpeaker } from "../hooks/useActiveSpeaker";
 import { api } from "../api/client";
 import VideoTile from "../components/VideoTile";
 import ControlBar from "../components/ControlBar";
 import SidePanel from "../components/SidePanel";
 import TallyDot from "../components/TallyDot";
+
+const RESIZE_CLASSES = { sm: "", md: "", lg: "col-span-2 row-span-2" };
 
 export default function RoomPage() {
   const { roomCode } = useParams();
@@ -17,14 +20,12 @@ export default function RoomPage() {
   const [panel, setPanel] = useState(null); // null | "chat" | "participants"
   const [lastReadCount, setLastReadCount] = useState(0);
 
-  // Per-room host status. `user.isHost` (if it exists at all) is a global
-  // auth-level flag — it doesn't know which room this is. The backend's
-  // /rooms/{room_code}/end route only allows the request through when
-  // room.host_id === current_user._id, so we determine host status the
-  // same way: by fetching the room and comparing.
   const [isHost, setIsHost] = useState(false);
   const [endError, setEndError] = useState(null);
   const [ending, setEnding] = useState(false);
+  const [localTileSize, setLocalTileSize] = useState("md");
+
+  const userId = user?.id ?? user?._id;
 
   useEffect(() => {
     let active = true;
@@ -43,18 +44,24 @@ export default function RoomPage() {
       .get(`/rooms/${roomCode}`)
       .then(({ data }) => {
         if (!active) return;
-        const userId = user?.id ?? user?._id;
         setIsHost(Boolean(userId) && String(data.host_id) === String(userId));
       })
       .catch(() => {
-        // If the room lookup fails, fall back to "not host" — we don't
-        // want to attempt a privileged action we can't confirm.
         if (active) setIsHost(false);
       });
     return () => {
       active = false;
     };
-  }, [roomCode, user]);
+  }, [roomCode, userId]);
+
+  // Fires whenever the server broadcasts a host change — including our own
+  // transfer taking effect, or someone else handing host to us.
+  const handleHostChanged = useCallback(
+    (newHostId) => {
+      setIsHost(Boolean(userId) && String(newHostId) === String(userId));
+    },
+    [userId]
+  );
 
   const {
     connectionStatus,
@@ -74,9 +81,18 @@ export default function RoomPage() {
     localName: user?.name,
     iceServers: iceServers || [],
     autoStart: iceServers !== null,
+    onHostChanged: handleHostChanged,
   });
 
   const remoteList = useMemo(() => Object.values(participants), [participants]);
+
+  const streamsById = useMemo(() => {
+    const map = { self: localStream };
+    remoteList.forEach((p) => { map[p.id] = p.stream; });
+    return map;
+  }, [localStream, remoteList]);
+
+  const { activeSpeakerId, speakingIds } = useActiveSpeaker(streamsById);
 
   const handleLeave = useCallback(async () => {
     setEndError(null);
@@ -90,9 +106,6 @@ export default function RoomPage() {
           { headers: { Authorization: `Bearer ${token}` } }
         );
       } catch (err) {
-        // Don't silently swallow this — if the meeting didn't actually
-        // end on the server, the host needs to know before we navigate
-        // them away and everyone else is left hanging in the call.
         setEnding(false);
         setEndError(
           err?.response?.status === 403
@@ -107,6 +120,29 @@ export default function RoomPage() {
     leave();
     navigate("/dashboard");
   }, [isHost, roomCode, token, leave, navigate]);
+
+  const transferHost = useCallback(
+    async (newHostId) => {
+      setEndError(null);
+      try {
+        await api.post(
+          `/rooms/${roomCode}/transfer-host`,
+          { new_host_id: newHostId },
+          { headers: { Authorization: `Bearer ${token}` } }
+        );
+        // isHost flips to false once the "host-changed" broadcast arrives
+        // via handleHostChanged above.
+      } catch (err) {
+        setEndError(
+          err?.response?.data?.detail || "Couldn't transfer host. Try again."
+        );
+      }
+    },
+    [roomCode, token]
+  );
+
+  const cycleLocalSize = () =>
+    setLocalTileSize((s) => (s === "sm" ? "md" : s === "md" ? "lg" : "sm"));
 
   const openPanel = (mode) => {
     setPanel((prev) => {
@@ -125,6 +161,15 @@ export default function RoomPage() {
   }
 
   const gridCols = gridColsForCount(remoteList.length + 1);
+
+  // Host's manual resize wins for their own tile; otherwise the active
+  // speaker (if any, and only once someone else has joined) gets enlarged.
+  const localClassName =
+    isHost && localTileSize !== "md"
+      ? RESIZE_CLASSES[localTileSize]
+      : activeSpeakerId === "self" && remoteList.length > 0
+      ? "col-span-2 row-span-2"
+      : "";
 
   return (
     <div className="relative min-h-screen bg-ink text-paper">
@@ -161,7 +206,19 @@ export default function RoomPage() {
             isLocal
             audioEnabled={micEnabled}
             videoEnabled={cameraEnabled}
-          />
+            speaking={speakingIds.has("self")}
+            className={localClassName}
+          >
+            {isHost && (
+              <button
+                onClick={cycleLocalSize}
+                className="absolute right-2 top-2 rounded-md bg-ink/70 px-2 py-1 text-[10px] font-medium text-paper/90 opacity-0 transition-opacity group-hover:opacity-100"
+                title="Resize your video"
+              >
+                {localTileSize.toUpperCase()}
+              </button>
+            )}
+          </VideoTile>
           {remoteList.map((p) => (
             <VideoTile
               key={p.id}
@@ -169,6 +226,8 @@ export default function RoomPage() {
               name={p.name}
               audioEnabled={p.audioEnabled}
               videoEnabled={p.videoEnabled}
+              speaking={speakingIds.has(p.id)}
+              className={activeSpeakerId === p.id ? "col-span-2 row-span-2" : ""}
             />
           ))}
         </div>
@@ -202,6 +261,8 @@ export default function RoomPage() {
         messages={messages}
         onSendChat={sendChat}
         selfName={user?.name}
+        isHost={isHost}
+        onTransferHost={transferHost}
         participants={[
           { id: "self", name: user?.name, isLocal: true, audioEnabled: micEnabled },
           ...remoteList,

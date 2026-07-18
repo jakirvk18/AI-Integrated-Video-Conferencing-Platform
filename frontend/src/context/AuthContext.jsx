@@ -54,9 +54,16 @@ export function AuthProvider({ children }) {
     setUser(null);
   }, []);
 
+  // Merges partial fields into the current user (e.g. after a profile save)
+  // without requiring a full re-login. Also accepts a full replacement
+  // object if the caller already has one from an API response.
+  const updateUser = useCallback((patch) => {
+    setUser((prev) => (prev ? { ...prev, ...patch } : patch));
+  }, []);
+
   return (
     <AuthContext.Provider
-      value={{ user, token, isAuthenticated: !!token, loading, login, register, logout }}
+      value={{ user, token, isAuthenticated: !!token, loading, login, register, logout, updateUser }}
     >
       {children}
     </AuthContext.Provider>

@@ -4,6 +4,8 @@ export default function ControlBar({
   onToggleMic,
   onToggleCamera,
   onLeave,
+  leaveDisabled = false,
+  leaveLabel = "Leave",
   onToggleChat,
   onToggleParticipants,
   chatActive,
@@ -36,10 +38,11 @@ export default function ControlBar({
 
         <button
           onClick={onLeave}
-          className="ml-1 flex h-11 items-center gap-2 rounded-full bg-tally px-4 text-sm font-semibold text-white transition-transform hover:scale-[1.03] active:scale-95"
+          disabled={leaveDisabled}
+          className="ml-1 flex h-11 items-center gap-2 rounded-full bg-tally px-4 text-sm font-semibold text-white transition-transform hover:scale-[1.03] active:scale-95 disabled:opacity-60 disabled:hover:scale-100"
         >
           <LeaveIcon />
-          Leave
+          {leaveLabel}
         </button>
       </div>
     </div>

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 
-export default function SidePanel({ mode, onClose, messages, onSendChat, participants, selfName }) {
+export default function SidePanel({ mode, onClose, messages, onSendChat, participants, selfName, isHost, onTransferHost }) {
   if (!mode) return null;
 
   return (
@@ -23,7 +23,7 @@ export default function SidePanel({ mode, onClose, messages, onSendChat, partici
       {mode === "chat" ? (
         <ChatBody messages={messages} onSendChat={onSendChat} selfName={selfName} />
       ) : (
-        <ParticipantsBody participants={participants} />
+        <ParticipantsBody participants={participants} isHost={isHost} onTransferHost={onTransferHost} />
       )}
     </aside>
   );
@@ -85,7 +85,7 @@ function ChatBody({ messages, onSendChat, selfName }) {
   );
 }
 
-function ParticipantsBody({ participants }) {
+function ParticipantsBody({ participants, isHost, onTransferHost }) {
   return (
     <div className="flex-1 space-y-1 overflow-y-auto px-2 py-3">
       {participants.map((p) => (
@@ -97,6 +97,14 @@ function ParticipantsBody({ participants }) {
             {p.name} {p.isLocal && <span className="text-muted-light">(you)</span>}
           </span>
           {p.audioEnabled === false && <span className="text-xs text-tally">muted</span>}
+          {isHost && !p.isLocal && (
+            <button
+              onClick={() => onTransferHost(p.id)}
+              className="rounded-md px-2 py-1 text-[10px] font-medium text-signal hover:bg-signal/10"
+            >
+              Make host
+            </button>
+          )}
         </div>
       ))}
     </div>

@@ -3,33 +3,22 @@ import { signalingUrl } from "../api/client";
 
 const ICE_FALLBACK = [{ urls: ["stun:stun.l.google.com:19302"] }];
 
-/**
- * Manages the signaling WebSocket + a mesh of RTCPeerConnections for a room.
- *
- * Flow:
- *  - On connect, server sends "room-state" with existing participant ids.
- *    We are the newcomer, so we create an offer to each existing participant.
- *  - When someone else joins later, server sends "peer-joined" to us; we wait
- *    for their offer (they are the newcomer relative to us).
- *  - offer/answer/ice-candidate are relayed by the server to a specific target.
- */
-export function useRoomCall({ roomCode, token, localName, iceServers, autoStart = true }) {
-  const [connectionStatus, setConnectionStatus] = useState("connecting"); // connecting | connected | closed | error | ended
+export function useRoomCall({ roomCode, token, localName, iceServers, autoStart = true, onHostChanged }) {
+  const [connectionStatus, setConnectionStatus] = useState("connecting");
   const [localStream, setLocalStream] = useState(null);
   const [micEnabled, setMicEnabled] = useState(true);
   const [cameraEnabled, setCameraEnabled] = useState(true);
-  const [participants, setParticipants] = useState({}); // id -> { id, name, stream, audioEnabled, videoEnabled }
+  const [participants, setParticipants] = useState({});
   const [messages, setMessages] = useState([]);
   const [mediaError, setMediaError] = useState(null);
 
   const wsRef = useRef(null);
-  const peersRef = useRef({}); // id -> RTCPeerConnection
+  const peersRef = useRef({});
   const localStreamRef = useRef(null);
-  const namesRef = useRef({}); // id -> name
+  const namesRef = useRef({});
+  const onHostChangedRef = useRef(onHostChanged);
+  onHostChangedRef.current = onHostChanged;
 
-  // "ended" is terminal: once the server tells us the meeting is over, no
-  // later event on this socket (close, error, etc.) should be able to
-  // downgrade the UI back to a live-looking room. Helper below encodes that.
   const setStatusUnlessEnded = useCallback((status) => {
     setConnectionStatus((prev) => (prev === "ended" ? prev : status));
   }, []);
@@ -197,9 +186,6 @@ export function useRoomCall({ roomCode, token, localName, iceServers, autoStart 
       const ws = new WebSocket(signalingUrl(roomCode, token));
       wsRef.current = ws;
 
-      // These fire on every close/error, including the one we trigger
-      // ourselves right after setting "ended" below — so they must not be
-      // allowed to stomp on a terminal "ended" status.
       ws.onopen = () => setStatusUnlessEnded("connected");
       ws.onclose = () => setStatusUnlessEnded("closed");
       ws.onerror = () => setStatusUnlessEnded("error");
@@ -247,12 +233,13 @@ export function useRoomCall({ roomCode, token, localName, iceServers, autoStart 
               videoEnabled: data.video_enabled,
             });
             break;
+          case "host-changed":
+            onHostChangedRef.current?.(data.new_host_id);
+            break;
           case "peer-left":
             closePeer(data.participant_id);
             break;
           case "meeting-ended":
-            // Set the terminal state first, then tear down. onclose above
-            // is guarded so it won't overwrite "ended" once this is set.
             setConnectionStatus("ended");
             Object.keys(peersRef.current).forEach((id) => peersRef.current[id].close());
             peersRef.current = {};

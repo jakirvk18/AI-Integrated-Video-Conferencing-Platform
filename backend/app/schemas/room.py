@@ -17,9 +17,6 @@ class RoomOut(BaseModel):
     ended_at: Optional[datetime] = None
 
 
-# Same shape as RoomOut today. Inheriting instead of duplicating the field
-# list means if RoomOut ever gains/loses a field, RoomHistory can't silently
-# drift out of sync with it.
 class RoomHistory(RoomOut):
     pass
 
@@ -30,3 +27,7 @@ class JoinRoomRequest(BaseModel):
 
 class RTCConfigOut(BaseModel):
     ice_servers: list[dict]
+
+
+class TransferHostRequest(BaseModel):
+    new_host_id: str

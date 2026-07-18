@@ -7,7 +7,9 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from app.config import settings
 from app.database import rooms_collection, history_collection
 from app.dependencies import get_current_user
-from app.schemas.room import RoomCreate, RoomHistory, RoomOut, JoinRoomRequest, RTCConfigOut
+from app.schemas.room import (
+    RoomCreate, RoomHistory, RoomOut, JoinRoomRequest, RTCConfigOut, TransferHostRequest,
+)
 from app.utils.helpers import generate_room_code, serialize_room
 from app.websocket.connection_manager import manager
 
@@ -27,8 +29,6 @@ async def create_room(payload: RoomCreate, current_user: dict = Depends(get_curr
     result = await rooms_collection.insert_one(room_doc)
     room_doc["_id"] = result.inserted_id
 
-    # Log a history entry for the host too, so hosted rooms show up
-    # alongside joined rooms in "Recent rooms".
     await history_collection.insert_one({
         "user_id": current_user["_id"],
         "room_code": room_doc["room_code"],
@@ -40,11 +40,6 @@ async def create_room(payload: RoomCreate, current_user: dict = Depends(get_curr
 
 @router.get("/rtc/config", response_model=RTCConfigOut)
 async def get_rtc_config(current_user: dict = Depends(get_current_user)):
-    """
-    Returns ICE server configuration (STUN/TURN) for the frontend's RTCPeerConnection.
-    NAT traversal for real deployments generally needs a TURN server;
-    STUN alone often fails across restrictive NATs/firewalls.
-    """
     ice_servers = [{"urls": settings.stun_servers}]
     if settings.turn_server_url:
         ice_servers.append({
@@ -65,10 +60,6 @@ async def get_room_history(user_id: str, current_user: dict = Depends(get_curren
     except InvalidId:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid user id")
 
-    # Pull the user's join/host events (most recent first), then look up
-    # the corresponding room docs. A user can appear in history_collection
-    # multiple times for the same room_code (rejoins) — dedupe while
-    # preserving most-recent-first order.
     history_cursor = history_collection.find({"user_id": uid}).sort("joined_at", -1)
     history_entries = await history_cursor.to_list(length=200)
 
@@ -92,12 +83,10 @@ async def get_room_history(user_id: str, current_user: dict = Depends(get_curren
     }).to_list(length=len(ordered_codes))
     rooms_by_code = {r["room_code"]: r for r in rooms}
 
-    # Re-apply the history order (Mongo's $in does not guarantee result order).
     result = [
         serialize_room(rooms_by_code[code])
         for code in ordered_codes
         if code in rooms_by_code
-
     ]
     return result
 
@@ -123,10 +112,6 @@ async def join_room(payload: JoinRoomRequest, current_user: dict = Depends(get_c
     if current_count >= settings.max_participants_per_room:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Room is full")
 
-    # Record a history entry for the user joining the room.
-    # Note: this is a best-effort log at request time, not proof the websocket
-    # connection succeeded. The websocket layer remains the source of truth
-    # for actual room occupancy/enforcement.
     history_doc = {
         "user_id": current_user["_id"],
         "room_code": room_code,
@@ -150,5 +135,36 @@ async def end_room(room_code: str, current_user: dict = Depends(get_current_user
         {"$set": {"is_active": False, "ended_at": datetime.now(timezone.utc)}},
     )
 
-    # Notify everyone currently connected that the meeting has ended
     await manager.broadcast(room_code, {"type": "meeting-ended"})
+
+
+@router.post("/{room_code}/transfer-host", status_code=status.HTTP_204_NO_CONTENT)
+async def transfer_host(
+    room_code: str,
+    payload: TransferHostRequest,
+    current_user: dict = Depends(get_current_user),
+):
+    room = await rooms_collection.find_one({"room_code": room_code})
+    if not room:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Room not found")
+    if str(room["host_id"]) != str(current_user["_id"]):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only the host can transfer host")
+    if payload.new_host_id == str(current_user["_id"]):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Already the host")
+
+    try:
+        new_host_oid = ObjectId(payload.new_host_id)
+    except InvalidId:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid user id")
+
+    # Only hand off to someone actually connected right now — a stale id
+    # would leave the room with an unreachable host.
+    if payload.new_host_id not in manager.get_participants(room_code):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="That user isn't in the room")
+
+    await rooms_collection.update_one(
+        {"_id": room["_id"]},
+        {"$set": {"host_id": new_host_oid}},
+    )
+
+    await manager.broadcast(room_code, {"type": "host-changed", "new_host_id": payload.new_host_id})

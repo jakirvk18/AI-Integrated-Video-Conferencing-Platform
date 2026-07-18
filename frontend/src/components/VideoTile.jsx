@@ -8,6 +8,9 @@ export default function VideoTile({
   muted = false,
   audioEnabled = true,
   videoEnabled = true,
+  speaking = false,
+  className = "",
+  children,
 }) {
   const videoRef = useRef(null);
 
@@ -20,7 +23,11 @@ export default function VideoTile({
   const initial = name?.[0]?.toUpperCase() || "?";
 
   return (
-    <div className="group relative flex aspect-video w-full items-center justify-center overflow-hidden rounded-xl bg-slate ring-1 ring-mist">
+    <div
+      className={`group relative flex aspect-video w-full items-center justify-center overflow-hidden rounded-xl bg-slate ring-1 transition-all ${
+        speaking ? "ring-2 ring-signal ring-offset-2 ring-offset-ink" : "ring-mist"
+      } ${className}`}
+    >
       {stream && videoEnabled ? (
         <video
           ref={videoRef}
@@ -51,6 +58,8 @@ export default function VideoTile({
           {!stream && <TallyDot live={false} />}
         </div>
       </div>
+
+      {children}
     </div>
   );
 }
