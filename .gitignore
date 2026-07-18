@@ -1,0 +1,95 @@
+# ===========================
+# Python
+# ===========================
+
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Compiled Python extensions
+*.so
+
+# Virtual environments
+venv/
+.venv/
+env/
+ENV/
+
+# Python environment
+.python-version
+
+# Distribution / packaging
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# Testing / Coverage
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+.mypy_cache/
+.ruff_cache/
+
+# Logs
+*.log
+
+# Environment variables
+.env
+.env.*
+
+# SQLite
+*.sqlite3
+*.db
+
+# ===========================
+# Node / React / Vite
+# ===========================
+
+node_modules/
+dist/
+coverage/
+
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Vite
+.vite/
+
+# ===========================
+# VS Code
+# ===========================
+
+.vscode/
+.history/
+
+# JetBrains
+.idea/
+
+# ===========================
+# Operating System
+# ===========================
+
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ===========================
+# Misc
+# ===========================
+
+*.tmp
+*.swp
+*.swo
+
+# ===========================
+# Local uploads/cache
+# ===========================
+
+uploads/
+temp/
+tmp/
+.cache/
