@@ -5,17 +5,17 @@ import { useAuth } from "../context/AuthContext";
 
 function SectionCard({ eyebrow, title, description, children }) {
   return (
-    <section className="rounded-xl shadow-[2px_4px_6px_3px_rgba(0,0,0,0.3)] p-7">
-      <span className="font-mono text-[11px] font-semibold uppercase tracking-[0.3em] text-[#8A8A8A]">
+    <section className="rounded-2xl border border-white/[0.08] bg-[#14171B] p-7">
+      <span className="font-mono text-[11px] font-semibold uppercase tracking-[0.3em] text-[#6B7076]">
         {eyebrow}
       </span>
       <h2
-        className="mt-2 text-xl font-bold text-[#0A0A0A]"
+        className="mt-2 text-xl font-bold text-white"
         style={{ fontFamily: "'Space Grotesk', sans-serif" }}
       >
         {title}
       </h2>
-      {description && <p className="mt-1 text-sm text-[#8A8A8A]">{description}</p>}
+      {description && <p className="mt-1 text-sm text-[#9AA0A6]">{description}</p>}
       <div className="mt-6">{children}</div>
     </section>
   );
@@ -24,12 +24,12 @@ function SectionCard({ eyebrow, title, description, children }) {
 function Field({ label, ...props }) {
   return (
     <label className="block">
-      <span className="font-mono text-[10px] font-semibold uppercase tracking-[0.25em] text-[#8A8A8A]">
+      <span className="font-mono text-[10px] font-semibold uppercase tracking-[0.25em] text-[#6B7076]">
         {label}
       </span>
       <input
         {...props}
-        className="mt-2 w-full rounded-xl border border-[#0A0A0A]/20 bg-transparent px-3 py-2.5 text-sm text-[#0A0A0A] placeholder:text-[#B5B5B5] focus:border-[#E4102A] focus:outline-none disabled:opacity-50"
+        className="mt-2 w-full rounded-xl border border-white/10 bg-[#0B0D10] px-3.5 py-2.5 text-sm text-white outline-none transition-colors placeholder:text-[#5A5F65] focus:border-red-500 focus:ring-4 focus:ring-red-500/10 disabled:opacity-50"
       />
     </label>
   );
@@ -38,10 +38,16 @@ function Field({ label, ...props }) {
 function StatusBanner({ tone, children }) {
   const isError = tone === "error";
   return (
-    <div className="mt-5 flex items-center gap-3 border border-[#0A0A0A] px-4 py-3 text-sm text-[#0A0A0A]">
+    <div
+      className="mt-5 flex items-center gap-3 rounded-xl border px-4 py-3 text-sm text-[#F5F4F1]"
+      style={{
+        borderColor: isError ? "rgba(255,122,107,0.3)" : "rgba(255,176,32,0.3)",
+        backgroundColor: isError ? "rgba(255,122,107,0.06)" : "rgba(255,176,32,0.06)",
+      }}
+    >
       <span
-        className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full text-[10px] font-bold text-white"
-        style={{ backgroundColor: isError ? "#E4102A" : "#0A0A0A" }}
+        className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full text-[10px] font-bold text-[#0B0D10]"
+        style={{ backgroundColor: isError ? "yellow" : "green" }}
       >
         {isError ? "!" : "✓"}
       </span>
@@ -126,13 +132,22 @@ export default function SettingsPage() {
     .join("");
 
   return (
-    <div className="min-h-screen bg-white" style={{ fontFamily: "'Inter', sans-serif" }}>
+    <div
+      className="relative min-h-screen overflow-hidden bg-[#0B0D10] text-[#F5F4F1]"
+      style={{ fontFamily: "'Inter', sans-serif" }}
+    >
+      {/* ambient glow, purely decorative */}
+      <div
+        className="pointer-events-none absolute -top-40 left-1/2 h-[520px] w-[820px] -translate-x-1/2 rounded-full opacity-[0.14] blur-[120px]"
+        style={{ background: "radial-gradient(circle, red 0%, transparent 70%)" }}
+      />
+
       <Navbar />
 
-      <main className="mx-auto max-w-3xl px-6 py-16">
+      <main className="relative mx-auto max-w-3xl px-6 py-16">
         <div className="flex items-center gap-5">
           <div
-            className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-[#0A0A0A] text-base font-semibold text-white"
+            className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-gray-950 text-base font-semibold text-white"
             style={{ fontFamily: "'Space Grotesk', sans-serif" }}
           >
             {initials}
@@ -142,18 +157,17 @@ export default function SettingsPage() {
               Your account
             </p>
             <h1
-              className="mt-1 text-3xl font-bold tracking-tight text-[#0A0A0A]"
+              className="mt-1 text-3xl font-bold tracking-tight text-white"
               style={{ fontFamily: "'Space Grotesk', sans-serif" }}
             >
               Settings
             </h1>
           </div>
         </div>
-        <div className="mt-4 h-[3px] w-14 bg-[#E4102A]" />
 
-        <div className="mt-12 flex flex-col gap-10">
+        <div className="mt-12 flex flex-col gap-6">
           <SectionCard
-            eyebrow="01 — Profile"
+            eyebrow="Profile"
             title="Account details"
             description="This is how you show up across Signal — hosts and participants will see this name."
           >
@@ -180,11 +194,11 @@ export default function SettingsPage() {
                 <StatusBanner tone="success">Your details have been saved.</StatusBanner>
               )}
 
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-4">
                 <button
                   type="submit"
                   disabled={!profileDirty || profileSaving}
-                  className="cursor-pointer rounded-xl bg-[#0A0A0A] px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[#E4102A] disabled:cursor-not-allowed disabled:opacity-40"
+                  className="cursor-pointer rounded-xl bg-red-500 px-5 py-2.5 text-sm font-semibold text-[#0B0D10] transition-colors hover:bg-gray-600 disabled:cursor-not-allowed disabled:opacity-40"
                 >
                   {profileSaving ? "Saving…" : "Save changes"}
                 </button>
@@ -197,7 +211,7 @@ export default function SettingsPage() {
                       setProfileError("");
                       setProfileSaved(false);
                     }}
-                    className="cursor-pointer text-sm font-medium text-[#8A8A8A] hover:text-[#0A0A0A]"
+                    className="cursor-pointer text-sm font-medium text-[#9AA0A6] hover:text-white"
                   >
                     Discard
                   </button>
@@ -207,7 +221,7 @@ export default function SettingsPage() {
           </SectionCard>
 
           <SectionCard
-            eyebrow="02 — Security"
+            eyebrow="Security"
             title="Change password"
             description="Use at least 8 characters. You'll stay signed in on this device."
           >
@@ -246,7 +260,7 @@ export default function SettingsPage() {
                 <button
                   type="submit"
                   disabled={!passwordFormValid || passwordSaving}
-                  className="cursor-pointer rounded-xl bg-[#0A0A0A] px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[#E4102A] disabled:cursor-not-allowed disabled:opacity-40"
+                  className="cursor-pointer rounded-xl bg-red-500 px-5 py-2.5 text-sm font-semibold text-[#0B0D10] transition-colors hover:bg-gray-600   disabled:cursor-not-allowed disabled:opacity-40"
                 >
                   {passwordSaving ? "Updating…" : "Update password"}
                 </button>
